@@ -1,7 +1,7 @@
 FROM alpine AS runtime
 
-COPY api-proxy-rs /usr/local/bin/api-proxy-rs
-
 WORKDIR /app
 
-ENTRYPOINT ["/usr/local/bin/api-proxy-rs"]
+COPY api-proxy-rs /app/api-proxy-rs
+
+ENTRYPOINT ["/app/api-proxy-rs"]
