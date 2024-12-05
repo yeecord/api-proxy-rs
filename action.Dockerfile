@@ -1,4 +1,4 @@
-FROM alpine AS runtime
+FROM debian:bookworm-slim AS runtime
 
 WORKDIR /app
 
