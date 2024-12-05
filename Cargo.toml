@@ -1,0 +1,39 @@
+[package]
+name = "api-proxy-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = "1.0.215"
+serde_json = "1.0.133"
+tracing = "0.1.41"
+xxhash-rust = { version = "0.8.12", features = ["xxh3"] }
+
+[dependencies.tokio]
+version = "1.42.0"
+features = ["rt-multi-thread", "macros"]
+
+[dependencies.sqlx]
+version = "0.8.2"
+features = ["sqlite", "macros", "runtime-tokio"]
+default-features = false
+
+[dependencies.reqwest]
+version = "0.12.9"
+features = ["rustls-tls-webpki-roots", "gzip"]
+
+[dependencies.axum]
+version = "0.7.9"
+
+[dependencies.tracing-subscriber]
+version = "0.3.19"
+
+[target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
+version = "0.6"
+features = ["background_threads"]
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
