@@ -54,17 +54,17 @@ impl Database {
     .unwrap()
   }
 
-  pub async fn set(&self, key: u64, response: CacheResponse) {
+  pub async fn set(&self, key: u64, response: &CacheResponse) {
     sqlx::query(
       r#"INSERT OR REPLACE INTO cache (key, body, status, timestamp, content_type) VALUES (?, ?, ?, strftime('%s', 'now'), ?)"#,
     ).bind(
       key as i64,
     ).bind(
-      response.body,
+      response.body.as_ref(),
     ).bind(
       response.status,
     ).bind(
-      response.content_type,
+      response.content_type.as_ref(),
     ).execute(&self.connection)
       .await.unwrap();
   }

@@ -72,7 +72,7 @@ pub async fn api_handler(request: Request) -> Response {
     status: status.as_u16(),
   };
 
-  DB.set(cache_key, cache_payload.clone()).await;
+  DB.set(cache_key, &cache_payload).await;
 
   response_from_cache(cache_payload)
 }
