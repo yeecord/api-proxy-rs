@@ -25,8 +25,8 @@ pub async fn api_handler(request: Request) -> Response {
 
   let Some(path) = uri.path_and_query else {
     return Response::builder()
-      .status(405)
-      .body("Method Not Allowed".into())
+      .status(400)
+      .body("Bad Request".into())
       .unwrap();
   };
 
