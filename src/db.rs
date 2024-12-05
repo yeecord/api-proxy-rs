@@ -1,6 +1,11 @@
+use sqlx::Statement;
 use std::sync::LazyLock;
 
-use sqlx::{sqlite::SqliteConnectOptions, FromRow, SqlitePool};
+use sqlx::{
+  sqlite::{SqliteConnectOptions, SqliteStatement},
+  Executor, FromRow, SqlitePool,
+};
+use tokio::sync::OnceCell;
 
 pub static DB: LazyLock<Database> = LazyLock::new(Database::default);
 
@@ -20,11 +25,12 @@ pub struct CacheResponse {
   pub content_type: Option<String>,
 }
 
-pub struct Database {
+pub struct Database<'a> {
   connection: SqlitePool,
+  queries: OnceCell<Queries<'a>>,
 }
 
-impl Default for Database {
+impl Default for Database<'_> {
   fn default() -> Self {
     Self {
       connection: SqlitePool::connect_lazy_with(
@@ -32,48 +38,90 @@ impl Default for Database {
           .filename("sqlite.db")
           .create_if_missing(true),
       ),
+      queries: OnceCell::default(),
     }
   }
 }
 
-impl Database {
+impl<'a> Database<'a> {
   pub async fn seed(&self) {
     sqlx::query(SEED_QUERY)
       .execute(&self.connection)
       .await
       .unwrap();
+
+    self
+      .queries
+      .set(Queries::create(&self.connection).await)
+      .unwrap();
   }
 
   pub async fn get(&self, key: i64) -> Option<CacheResponse> {
-    sqlx::query_as(
-      r#"SELECT * FROM cache WHERE key = ? AND timestamp > (strftime('%s', 'now') - 60 * 5)"#,
-    )
-    .bind(key)
-    .fetch_optional(&self.connection)
-    .await
-    .unwrap()
+    let select_query = &self.queries.get().unwrap().select;
+
+    select_query
+      .query_as()
+      .bind(key)
+      .fetch_optional(&self.connection)
+      .await
+      .unwrap()
   }
 
   pub async fn set(&self, response: &CacheResponse) {
-    sqlx::query(
-      r#"INSERT OR REPLACE INTO cache (key, body, status, timestamp, content_type) VALUES (?, ?, ?, strftime('%s', 'now'), ?)"#,
-    ).bind(
-      response.key
-    ).bind(
-      response.body.as_ref(),
-    ).bind(
-      response.status,
-    ).bind(
-      response.content_type.as_ref(),
-    ).execute(&self.connection)
-      .await.unwrap();
+    let insert_query = &self.queries.get().unwrap().insert;
+
+    insert_query
+      .query()
+      .bind(response.key)
+      .bind(response.body.as_ref())
+      .bind(response.status)
+      .bind(response.content_type.as_ref())
+      .execute(&self.connection)
+      .await
+      .unwrap();
   }
 
   pub async fn delete(&self, key: i64) {
-    sqlx::query(r#"DELETE FROM cache WHERE key = ?"#)
+    let delete_query = &self.queries.get().unwrap().delete;
+
+    delete_query
+      .query()
       .bind(key)
       .execute(&self.connection)
       .await
       .unwrap();
+  }
+}
+
+#[derive(Debug)]
+struct Queries<'a> {
+  pub insert: SqliteStatement<'a>,
+  pub select: SqliteStatement<'a>,
+  pub delete: SqliteStatement<'a>,
+}
+
+impl Queries<'_> {
+  pub async fn create(connection: &SqlitePool) -> Self {
+    let insert = connection.prepare(
+      r#"INSERT OR REPLACE INTO cache (key, body, status, timestamp, content_type) VALUES (?, ?, ?, strftime('%s', 'now'), ?)"#,
+    ).await.unwrap();
+
+    let select = connection
+      .prepare(
+        r#"SELECT * FROM cache WHERE key = ? AND timestamp > (strftime('%s', 'now') - 60 * 5)"#,
+      )
+      .await
+      .unwrap();
+
+    let delete = connection
+      .prepare(r#"DELETE FROM cache WHERE key = ?"#)
+      .await
+      .unwrap();
+
+    Self {
+      insert,
+      select,
+      delete,
+    }
   }
 }
