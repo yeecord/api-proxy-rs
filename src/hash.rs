@@ -8,7 +8,7 @@ pub struct CacheKeyPayload {
   pub authorization: Option<String>,
 }
 
-pub fn create_cache_key(payload: CacheKeyPayload) -> u64 {
+pub fn create_cache_key(payload: CacheKeyPayload) -> i64 {
   let method_bytes = payload.method.as_bytes();
   let url_bytes = payload.url.as_bytes();
   let authorization_bytes = payload
@@ -24,5 +24,5 @@ pub fn create_cache_key(payload: CacheKeyPayload) -> u64 {
   buffer.extend_from_slice(url_bytes);
   buffer.extend_from_slice(authorization_bytes);
 
-  xxh3::xxh3_64(&buffer)
+  xxh3::xxh3_64(&buffer) as i64
 }

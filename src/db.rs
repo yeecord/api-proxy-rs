@@ -14,7 +14,7 @@ pub const SEED_QUERY: &str = r#"CREATE TABLE IF NOT EXISTS cache (
 
 #[derive(FromRow, Clone)]
 pub struct CacheResponse {
-  pub key: u64,
+  pub key: i64,
   pub body: Option<Vec<u8>>,
   pub status: u16,
   pub content_type: Option<String>,
@@ -44,21 +44,21 @@ impl Database {
       .unwrap();
   }
 
-  pub async fn get(&self, key: u64) -> Option<CacheResponse> {
+  pub async fn get(&self, key: i64) -> Option<CacheResponse> {
     sqlx::query_as(
       r#"SELECT * FROM cache WHERE key = ? AND timestamp > (strftime('%s', 'now') - 60 * 5)"#,
     )
-    .bind(key as i64)
+    .bind(key)
     .fetch_optional(&self.connection)
     .await
     .unwrap()
   }
 
-  pub async fn set(&self, key: u64, response: &CacheResponse) {
+  pub async fn set(&self, response: &CacheResponse) {
     sqlx::query(
       r#"INSERT OR REPLACE INTO cache (key, body, status, timestamp, content_type) VALUES (?, ?, ?, strftime('%s', 'now'), ?)"#,
     ).bind(
-      key as i64,
+      response.key
     ).bind(
       response.body.as_ref(),
     ).bind(
@@ -69,9 +69,9 @@ impl Database {
       .await.unwrap();
   }
 
-  pub async fn delete(&self, key: u64) {
+  pub async fn delete(&self, key: i64) {
     sqlx::query(r#"DELETE FROM cache WHERE key = ?"#)
-      .bind(key as i64)
+      .bind(key)
       .execute(&self.connection)
       .await
       .unwrap();
