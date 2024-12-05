@@ -36,7 +36,6 @@ pub async fn api_handler(request: Request) -> Response {
     authorization: head
       .headers
       .get(AUTHORIZATION)
-      .cloned()
       .map(|x| x.to_str().unwrap().to_string()),
   });
 
