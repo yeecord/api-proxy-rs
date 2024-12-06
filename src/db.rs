@@ -1,3 +1,5 @@
+use axum::response::Response;
+use reqwest::header::CONTENT_TYPE;
 use sqlx::Statement;
 use std::sync::LazyLock;
 
@@ -23,6 +25,18 @@ pub struct CacheResponse {
   pub body: Option<Vec<u8>>,
   pub status: u16,
   pub content_type: Option<String>,
+}
+
+impl From<CacheResponse> for Response {
+  fn from(val: CacheResponse) -> Self {
+    let mut builder = Response::builder().status(val.status);
+
+    if let Some(content_type) = val.content_type {
+      builder = builder.header(CONTENT_TYPE, content_type);
+    }
+
+    builder.body(val.body.unwrap_or_default().into()).unwrap()
+  }
 }
 
 pub struct Database<'a> {

@@ -12,7 +12,7 @@ use reqwest::{
 
 use crate::{
   db::{CacheResponse, DB},
-  hash::{create_cache_key, CacheKeyPayload},
+  hash::create_cache_key,
 };
 
 pub static HTTP: LazyLock<Client> = LazyLock::new(Client::default);
@@ -30,17 +30,14 @@ pub async fn api_handler(request: Request) -> Response {
       .unwrap();
   };
 
-  let cache_key = create_cache_key(CacheKeyPayload {
-    method: head.method.to_string(),
-    url: path.to_string(),
-    authorization: head
-      .headers
-      .get(AUTHORIZATION)
-      .map(|x| x.to_str().unwrap().to_string()),
-  });
+  let cache_key = create_cache_key(
+    head.method.as_str().as_bytes(),
+    path.as_str().as_bytes(),
+    head.headers.get(AUTHORIZATION).map(|x| x.as_bytes()),
+  );
 
   if let Some(cache_response) = DB.get(cache_key).await {
-    return response_from_cache(cache_response);
+    return cache_response.into();
   }
 
   let url = Uri::builder()
@@ -59,7 +56,7 @@ pub async fn api_handler(request: Request) -> Response {
     .await
     .unwrap();
 
-  let status = response.status();
+  let status = response.status().as_u16();
 
   let content_type = response.headers_mut().remove(CONTENT_TYPE);
   let body = response.bytes().await.unwrap();
@@ -68,22 +65,10 @@ pub async fn api_handler(request: Request) -> Response {
     key: cache_key,
     content_type: content_type.map(|x| x.to_str().unwrap().to_string()),
     body: Some(body.to_vec()),
-    status: status.as_u16(),
+    status,
   };
 
   DB.set(&cache_payload).await;
 
-  response_from_cache(cache_payload)
-}
-
-fn response_from_cache(cache_response: CacheResponse) -> Response {
-  let mut builder = Response::builder().status(cache_response.status);
-
-  if let Some(content_type) = &cache_response.content_type {
-    builder = builder.header(CONTENT_TYPE, content_type);
-  }
-
-  builder
-    .body(cache_response.body.unwrap_or_default().into())
-    .unwrap()
+  cache_payload.into()
 }
