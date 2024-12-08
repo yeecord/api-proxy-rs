@@ -2,12 +2,9 @@ pub mod db;
 mod handlers;
 pub mod hash;
 
-use axum::{
-  routing::{get, post},
-  serve, Router,
-};
+use axum::{routing::any, serve, Router};
 use db::DB;
-use handlers::{api::api_handler, health::health_handler, invalidate::invalidate_handler};
+use handlers::{api::api_handler, health::health_handler};
 use tokio::net::TcpListener;
 use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -31,9 +28,8 @@ async fn main() {
   DB.seed().await;
 
   let app = Router::new()
-    .route("/", get(health_handler))
-    .route("/api/*path", get(api_handler))
-    .route("/invalidate", post(invalidate_handler));
+    .route("/", any(health_handler))
+    .route("/api/*path", any(api_handler));
 
   info!("listening on {}", BIND_ADDRESS);
 

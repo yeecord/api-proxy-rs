@@ -2,11 +2,11 @@ use std::sync::LazyLock;
 
 use axum::{
   extract::Request,
-  http::{HeaderValue, Uri},
+  http::{Method, Uri},
   response::Response,
 };
 use reqwest::{
-  header::{AUTHORIZATION, CONTENT_TYPE, HOST},
+  header::{CONTENT_TYPE, HOST},
   Client,
 };
 
@@ -17,9 +17,14 @@ use crate::{
 
 pub static HTTP: LazyLock<Client> = LazyLock::new(Client::default);
 
-pub const DISCORD_HOST: HeaderValue = HeaderValue::from_static("discord.com");
-
 pub async fn api_handler(request: Request) -> Response {
+  if request.method() != Method::GET && request.method() != Method::DELETE {
+    return Response::builder()
+      .status(405)
+      .body("Method Not Allowed".into())
+      .unwrap();
+  }
+
   let (mut head, _) = request.into_parts();
   let uri = head.uri.into_parts();
 
@@ -30,24 +35,51 @@ pub async fn api_handler(request: Request) -> Response {
       .unwrap();
   };
 
+  let host = head
+    .headers
+    .get("x-host")
+    .and_then(|host| host.to_str().ok())
+    .unwrap_or("discord.com")
+    .to_lowercase();
+
+  let authorization_header = head
+    .headers
+    .get("x-authorization-name")
+    .map(|x| x.to_str().unwrap())
+    .unwrap_or("authorization")
+    .to_lowercase();
+
+  let authorization = head
+    .headers
+    .get(&authorization_header)
+    .and_then(|x| x.to_str().ok());
+
   let cache_key = create_cache_key(
     head.method.as_str().as_bytes(),
     path.as_str().as_bytes(),
-    head.headers.get(AUTHORIZATION).map(|x| x.as_bytes()),
+    host.as_bytes(),
+    authorization_header.as_bytes(),
+    authorization.map(|x| x.as_bytes()),
   );
+
+  if head.method == Method::DELETE {
+    DB.delete(cache_key).await;
+
+    return Response::builder().status(200).body("OK".into()).unwrap();
+  }
 
   if let Some(cache_response) = DB.get(cache_key).await {
     return cache_response.into();
   }
 
   let url = Uri::builder()
-    .authority("discord.com")
+    .authority(host.as_str())
     .scheme("https")
     .path_and_query(path)
     .build()
     .unwrap();
 
-  head.headers.insert(HOST, DISCORD_HOST);
+  head.headers.insert(HOST, host.parse().unwrap());
 
   let mut response = HTTP
     .get(url.to_string())
