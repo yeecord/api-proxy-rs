@@ -25,8 +25,14 @@ You should provide the same headers as the GET request.
 Health check endpoint.
 
 
-## Docker
+## Quick Start with Docker
 
 ```sh
 docker run -d -p 3000:80 ghcr.io/yeecord/api-proxy-rs:latest
+```
+
+## Compile from source
+
+```sh
+cargo build --release
 ```
