@@ -4,7 +4,7 @@ pub mod hash;
 
 use axum::{routing::any, serve, Router};
 use db::DB;
-use handlers::{api::api_handler, health::health_handler};
+use handlers::{health::health_handler, proxy::proxy_handler};
 use tokio::net::TcpListener;
 use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -29,7 +29,7 @@ async fn main() {
 
   let app = Router::new()
     .route("/", any(health_handler))
-    .route("/api/*path", any(api_handler));
+    .route("/*path", any(proxy_handler));
 
   info!("listening on {}", BIND_ADDRESS);
 

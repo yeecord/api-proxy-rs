@@ -17,7 +17,7 @@ use crate::{
 
 pub static HTTP: LazyLock<Client> = LazyLock::new(Client::default);
 
-pub async fn api_handler(request: Request) -> Response {
+pub async fn proxy_handler(request: Request) -> Response {
   if request.method() != Method::GET && request.method() != Method::DELETE {
     return Response::builder()
       .status(405)
