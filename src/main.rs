@@ -29,7 +29,7 @@ async fn main() {
 
   let app = Router::new()
     .route("/", any(health_handler))
-    .route("/*path", any(proxy_handler));
+    .route("/{*path}", any(proxy_handler));
 
   info!("listening on {}", BIND_ADDRESS);
 
