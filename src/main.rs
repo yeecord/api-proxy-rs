@@ -5,8 +5,12 @@ pub mod hash;
 use axum::{routing::any, serve, Router};
 use db::DB;
 use handlers::{health::health_handler, proxy::proxy_handler};
-use tokio::net::TcpListener;
-use tracing::{info, level_filters::LevelFilter};
+use tokio::{
+  net::TcpListener,
+  select,
+  signal::unix::{signal, SignalKind},
+};
+use tracing::{debug, info, level_filters::LevelFilter};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 const BIND_ADDRESS: &str = "0.0.0.0:80";
@@ -34,5 +38,20 @@ async fn main() {
   info!("listening on {}", BIND_ADDRESS);
 
   let listener = TcpListener::bind(BIND_ADDRESS).await.unwrap();
-  serve(listener, app).await.unwrap();
+
+  serve(listener, app)
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .unwrap();
+}
+
+async fn shutdown_signal() {
+  // https://www.gnu.org/software/libc/manual/html_node/Termination-Signals.html
+  let mut signal_terminate = signal(SignalKind::terminate()).unwrap();
+  let mut signal_interrupt = signal(SignalKind::interrupt()).unwrap();
+
+  select! {
+    _ = signal_terminate.recv() => debug!("Received SIGTERM."),
+    _ = signal_interrupt.recv() => debug!("Received SIGINT."),
+  };
 }

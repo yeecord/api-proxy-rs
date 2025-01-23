@@ -57,7 +57,7 @@ impl Default for Database<'_> {
   }
 }
 
-impl<'a> Database<'a> {
+impl Database<'_> {
   pub async fn seed(&self) {
     sqlx::query(SEED_QUERY)
       .execute(&self.connection)

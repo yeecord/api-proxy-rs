@@ -11,7 +11,7 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dependencies.tokio]
 version = "1"
-features = ["rt-multi-thread", "macros"]
+features = ["rt-multi-thread", "macros", "signal"]
 
 [dependencies.sqlx]
 version = "0.8"
