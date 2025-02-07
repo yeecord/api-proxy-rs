@@ -51,4 +51,5 @@ jobs:
           context: .
           file: action.Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ghcr.io/yeecord/api-proxy-rs:latest
