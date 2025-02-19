@@ -31,7 +31,6 @@ version = "0.3"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies.tikv-jemallocator]
 version = "0.6"
-features = ["background_threads"]
 
 [profile.release]
 strip = true
