@@ -9,14 +9,24 @@ on:
 permissions:
   packages: write
   contents: write
-  
+
 env:
   JEMALLOC_SYS_WITH_MALLOC_CONF: narenas:1,dirty_decay_ms:0,muzzy_decay_ms:0,abort_conf:true
   IMAGE: ghcr.io/yeecord/api-proxy-rs
 
 jobs:
-  build-x86:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - tag: x86
+            os: ubuntu-24.04
+            platform: linux/amd64
+          - tag: arm64
+            os: ubuntu-24.04-arm64
+            platform: linux/arm64
 
     steps:
       - uses: actions/checkout@v4
@@ -37,58 +47,34 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          tags: ${{ env.IMAGE }}:${{ github.sha }}-x86
-
-  build-arm64:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to ghcr
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: ${{ env.IMAGE }}:${{ github.sha }}-arm64
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha
+          cache-to: type=gha,name=cache,scope=${{ matrix.platform }},mode=max
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}-${{ matrix.tag }}
+            ${{ env.IMAGE }}:latest-${{ matrix.tag }}
 
   create-manifest:
     runs-on: ubuntu-latest
-    needs:
-      - build-x86
-      - build-arm64
+    needs: build
 
     steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to ghcr
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Create SHA manifest and push
-        run: |
-          docker manifest create \
-            ${{ env.IMAGE }}:${{ github.sha }} \
-            --amend ${{ env.IMAGE }}:${{ github.sha }}-x86 \
-            --amend ${{ env.IMAGE }}:${{ github.sha }}-arm64
-          docker manifest push ${{ env.IMAGE }}:${{ github.sha }}
 
-      - name: Create latest manifest and push
+      - name: Create and Push Multi-arch Manifest
         run: |
-          docker manifest create \
-            ${{ env.IMAGE }}:latest \
-            --amend ${{ env.IMAGE }}:latest-x86 \
-            --amend ${{ env.IMAGE }}:latest-arm64
-          docker manifest push ${{ env.IMAGE }}:latest
+          docker buildx imagetools create -t ${{ env.IMAGE }}:${{ github.sha }} \
+            ${{ env.IMAGE }}:${{ github.sha }}-x86 \
+            ${{ env.IMAGE }}:${{ github.sha }}-arm64
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.IMAGE }}:${{ github.sha }}
