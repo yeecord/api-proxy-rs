@@ -9,14 +9,14 @@ on:
 permissions:
   packages: write
   contents: write
+  
+env:
+  JEMALLOC_SYS_WITH_MALLOC_CONF: narenas:1,dirty_decay_ms:0,muzzy_decay_ms:0,abort_conf:true
+  IMAGE: ghcr.io/yeecord/api-proxy-rs
 
 jobs:
-  build:
+  build-x86:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-    env:
-      JEMALLOC_SYS_WITH_MALLOC_CONF: narenas:1,dirty_decay_ms:0,muzzy_decay_ms:0,abort_conf:true
 
     steps:
       - uses: actions/checkout@v4
@@ -31,25 +31,61 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
         with:
-          cache-on-failure: true
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}-x86
 
-      - name: Build
-        run: cargo build --release && cp target/release/api-proxy-rs api-proxy-rs
+  build-arm64:
+    runs-on: ubuntu-latest
 
-      - name: Publish artifacts
-        uses: actions/upload-artifact@v4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr
+        uses: docker/login-action@v3
         with:
-          name: api-proxy-rs
-          path: api-proxy-rs
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: action.Dockerfile
+          file: Dockerfile
           push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ghcr.io/yeecord/api-proxy-rs:latest
+          tags: ${{ env.IMAGE }}:${{ github.sha }}-arm64
+
+  create-manifest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Log in to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Create SHA manifest and push
+        run: |
+          docker manifest create \
+            ${{ env.IMAGE }}:${{ github.sha }} \
+            --amend ${{ env.IMAGE }}:${{ github.sha }}-x86 \
+            --amend ${{ env.IMAGE }}:${{ github.sha }}-arm64
+          docker manifest push ${{ env.IMAGE }}:${{ github.sha }}
+
+      - name: Create latest manifest and push
+        run: |
+          docker manifest create \
+            ${{ env.IMAGE }}:latest \
+            --amend ${{ env.IMAGE }}:latest-x86 \
+            --amend ${{ env.IMAGE }}:latest-arm64
+          docker manifest push ${{ env.IMAGE }}:latest
