@@ -2,9 +2,12 @@ pub mod db;
 mod handlers;
 pub mod hash;
 
-use axum::{routing::any, serve, Router};
+use std::future::ready;
+
+use axum::{routing::{any, get}, serve, Router};
 use db::DB;
 use handlers::{health::health_handler, proxy::proxy_handler};
+use metrics_exporter_prometheus::PrometheusBuilder;
 use tokio::{
   net::TcpListener,
   select,
@@ -29,8 +32,11 @@ async fn main() {
 
   DB.seed().await;
 
+  let metrics_exporter = PrometheusBuilder::new().install_recorder().unwrap();
+
   let app = Router::new()
     .route("/", any(health_handler))
+    .route("/metrics", get(move || ready(metrics_exporter.render())))
     .route("/{*path}", any(proxy_handler));
 
   info!("listening on {}", BIND_ADDRESS);

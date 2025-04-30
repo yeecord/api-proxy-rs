@@ -1,10 +1,11 @@
-use std::sync::LazyLock;
+use std::{sync::LazyLock, time::Instant};
 
 use axum::{
   extract::Request,
   http::{Method, Uri},
   response::Response,
 };
+use metrics::{counter, histogram};
 use reqwest::{
   header::{CONTENT_TYPE, HOST},
   Client,
@@ -65,6 +66,8 @@ pub async fn proxy_handler(request: Request) -> Response {
   if head.method == Method::DELETE {
     DB.delete(cache_key).await;
 
+    counter!("api_proxy_cache_deleted", "host" => host).increment(1);
+
     return Response::builder().status(200).body("OK".into()).unwrap();
   }
 
@@ -81,6 +84,8 @@ pub async fn proxy_handler(request: Request) -> Response {
 
   head.headers.insert(HOST, host.parse().unwrap());
 
+  let start = Instant::now();
+
   let mut response = HTTP
     .get(url.to_string())
     .headers(head.headers)
@@ -88,7 +93,14 @@ pub async fn proxy_handler(request: Request) -> Response {
     .await
     .unwrap();
 
+  let duration = start.elapsed();
+
+  histogram!("api_proxy_request_duration_ms", "host" => host.to_string())
+    .record(duration.as_millis() as f64);
+
   let status = response.status().as_u16();
+
+  counter!("api_proxy_request_status", "host" => host, "status" => status.to_string()).increment(1);
 
   let content_type = response.headers_mut().remove(CONTENT_TYPE);
   let body = response.bytes().await.unwrap();

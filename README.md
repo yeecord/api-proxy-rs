@@ -24,6 +24,9 @@ You should provide the same headers as the GET request.
 
 Health check endpoint.
 
+### GET `/metrics`
+
+Prometheus metrics endpoint.
 
 ## Quick Start with Docker
 
