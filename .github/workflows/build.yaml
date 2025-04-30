@@ -70,7 +70,7 @@ jobs:
 
       - name: Create and Push Multi-arch Manifest
         run: |
-          docker buildx imagetools create -t ${{ env.IMAGE }}:${{ github.sha }} \
+          docker buildx imagetools create -t ${{ env.IMAGE }}:${{ github.sha }} -t ${{ env.IMAGE }}:latest \
             ${{ env.IMAGE }}:${{ github.sha }}-x86 \
             ${{ env.IMAGE }}:${{ github.sha }}-arm64
 
